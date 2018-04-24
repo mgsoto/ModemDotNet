@@ -230,14 +230,22 @@ namespace mgsoto.Ports.Serial
             throw new IOException("Too many errors caught, abandoning transfer");
         }
 
+        /// <summary>
+        /// Writes the CRC value to the stream.
+        /// </summary>
+        /// <param name="channel">Stream to write to.</param>
+        /// <param name="block">Block to write.</param>
+        /// <param name="crc">CRC calculation to use.</param>
         protected void WriteCrc(Stream channel, byte[] block, ICrc crc)
         {
             byte[] crcBytes = new byte[crc.Length];
             long crcValue = crc.Compute(block);
+
             for (int i = 0; i < crc.Length; i++)
             {
                 crcBytes[crc.Length - i - 1] = (byte)((crcValue >> (8 * i)) & 0xFF);
             }
+
             channel.Write(crcBytes, 0, crcBytes.Length);
         }
     }
