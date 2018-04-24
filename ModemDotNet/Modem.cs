@@ -92,17 +92,23 @@ namespace mgsoto.Ports.Serial
             }
         }
 
+        /// <summary>
+        /// Sends the EOT character.
+        /// </summary>
+        /// <param name="channel">The channel to send on.</param>
+        /// <param name="cancellationToken">Cancellation token to use.</param>
         protected async Task SendEot(Stream channel, CancellationToken cancellationToken)
         {
             int errorCount = 0;
             ModemTimer timer = new ModemTimer(BLOCK_TIMEOUT);
-            int character;
+
             while (errorCount < 10)
             {
-                SendByte(channel, EOT);
+                await SendByte(channel, EOT, cancellationToken);
+
                 try
                 {
-                    character = await ReadByte(channel, timer, cancellationToken);
+                    int character = await ReadByte(channel, timer, cancellationToken);
 
                     if (character == ACK)
                     {
@@ -113,9 +119,11 @@ namespace mgsoto.Ports.Serial
                         throw new IOException("Transmission terminated");
                     }
                 }
-                catch (TimeoutException ignored)
+                catch (TimeoutException)
                 {
+                    // Ignore timeout exceptions.
                 }
+
                 errorCount++;
             }
         }
@@ -142,10 +150,17 @@ namespace mgsoto.Ports.Serial
             }
         }
 
-        protected void SendByte(Stream channel, byte b)
+        /// <summary>
+        /// Sends a byte to the channel.
+        /// </summary>
+        /// <param name="channel">The channel to use.</param>
+        /// <param name="b">The byte to send.</param>
+        /// <param name="cancellationToken">Cancellation token to use.</param>
+        protected async Task SendByte(Stream channel, byte b, CancellationToken cancellationToken)
         {
-            channel.WriteByte(b);
-            channel.Flush();
+            byte[] buffer = new byte[] { b };
+            await channel.WriteAsync(buffer, 0, 1, cancellationToken);
+            await channel.FlushAsync(cancellationToken);
         }
 
         protected async Task SendBlock(Stream channel, int blockNumber, byte[] block, int dataLength, ICrc crc, CancellationToken cancellationToken)
