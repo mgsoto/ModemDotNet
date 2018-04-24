@@ -15,7 +15,8 @@ namespace mgsoto.Ports.Serial
     {
         public override void Send(Stream channel, Stream dataStream, string fileName)
         {
-            Timer timer = new Timer(WAIT_FOR_RECEIVER_TIMEOUT).start();
+            ModemTimer timer = new ModemTimer(WAIT_FOR_RECEIVER_TIMEOUT);
+            timer.Start();
             bool useCrc16 = WaitReceiverRequest(channel, timer);
             ICrc crc = WaitReceiverRequest(channel, timer) ? Crc.Crc16 : Crc.Crc8;
 
@@ -48,7 +49,7 @@ namespace mgsoto.Ports.Serial
         protected static void SendEot(Stream channel)
         {
             int errorCount = 0;
-            Timer timer = new Timer(BLOCK_TIMEOUT);
+            ModemTimer timer = new ModemTimer(BLOCK_TIMEOUT);
             int character;
             while (errorCount < 10)
             {
@@ -73,7 +74,7 @@ namespace mgsoto.Ports.Serial
             }
         }
 
-        private static bool WaitReceiverRequest(Stream channel, Timer timer)
+        private static bool WaitReceiverRequest(Stream channel, ModemTimer timer)
         {
         int character;
             while (true) {
@@ -100,7 +101,7 @@ namespace mgsoto.Ports.Serial
         {
             int errorCount;
             int character;
-            Timer timer = new Timer(SEND_BLOCK_TIMEOUT);
+            ModemTimer timer = new ModemTimer(SEND_BLOCK_TIMEOUT);
 
             if (dataLength < block.Length)
             {
@@ -113,7 +114,7 @@ namespace mgsoto.Ports.Serial
 
             while (errorCount < MAXERRORS)
             {
-                timer.start();
+                timer.Start();
 
                 if (block.Length == 1024)
                     channel.WriteByte(STX);
@@ -168,7 +169,7 @@ namespace mgsoto.Ports.Serial
             channel.Write(crcBytes, 0, crcBytes.Length);
         }
 
-        private static byte ReadByte(Stream channel, Timer timer)
+        private static byte ReadByte(Stream channel, ModemTimer timer)
         {
             while (true)
             {
@@ -177,7 +178,7 @@ namespace mgsoto.Ports.Serial
                     int b = channel.ReadByte();
                     return (byte)b;
                 }
-                if (timer.isExpired()) {
+                if (timer.Expired) {
                     throw new TimeoutException();
                 }
 
@@ -186,65 +187,5 @@ namespace mgsoto.Ports.Serial
         }
 
         
-    }
-
-    class Timer
-    {
-
-        private long startTime = 0;
-        private long stopTime = 0;
-        private long timeout = 0;
-
-        public Timer(long timeout)
-        {
-            this.timeout = timeout;
-        }
-
-        public Timer start()
-        {
-            this.startTime = DateTime.Now.ToUnixTime();
-            this.stopTime = 0;
-            return this;
-        }
-
-        public void stop()
-        {
-            this.stopTime = DateTime.Now.ToUnixTime();
-        }
-
-        public bool isExpired()
-        {
-            return (DateTime.Now.ToUnixTime() > startTime + timeout);
-        }
-
-        public long getStartTime()
-        {
-            return this.startTime;
-        }
-
-        public long getStopTime()
-        {
-            return this.stopTime;
-        }
-
-        public long getTotalTime()
-        {
-            return this.stopTime - this.startTime;
-        }
-
-        public long getTimeout()
-        {
-            return timeout;
-        }
-
-        public void setTimeout(long timeout)
-        {
-            this.timeout = timeout;
-        }
-
-        public bool isWorking()
-        {
-            return (stopTime != 0);
-        }
     }
 }
