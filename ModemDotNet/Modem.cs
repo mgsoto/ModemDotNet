@@ -169,11 +169,19 @@ namespace mgsoto.Ports.Serial
             await channel.FlushAsync(cancellationToken);
         }
 
+        /// <summary>
+        /// Sends a block of data.
+        /// </summary>
+        /// <param name="channel">Channel to send the data on.</param>
+        /// <param name="blockNumber">The block number we're sending.</param>
+        /// <param name="block">The block contents to send.</param>
+        /// <param name="dataLength">The length of the block.</param>
+        /// <param name="crc">CRC calculation to use.</param>
+        /// <param name="cancellationToken">Cancellation token to use.</param>
         protected async Task SendBlock(Stream channel, int blockNumber, byte[] block, int dataLength, ICrc crc, CancellationToken cancellationToken)
         {
-            int errorCount;
-            int character;
             ModemTimer timer = new ModemTimer(SEND_BLOCK_TIMEOUT);
+            int errorCount = 0;            
 
             if (dataLength < block.Length)
             {
@@ -182,16 +190,22 @@ namespace mgsoto.Ports.Serial
                     block[k] = CPMEOF;
                 }
             }
-            errorCount = 0;
 
             while (errorCount < MAXERRORS)
             {
+                bool keepGoing = true;
+
                 timer.Start();
 
                 if (block.Length == 1024)
+                {
                     channel.WriteByte(STX);
+                }
                 else //128
+                {
                     channel.WriteByte(SOH);
+                }
+
                 channel.WriteByte((byte)blockNumber);
                 channel.WriteByte((byte)~blockNumber);
 
@@ -199,11 +213,12 @@ namespace mgsoto.Ports.Serial
                 WriteCrc(channel, block, crc);
                 channel.Flush();
 
-                while (true)
+                while (keepGoing)
                 {
                     try
                     {
-                        character = await ReadByte(channel, timer, cancellationToken);
+                        byte character = await ReadByte(channel, timer, cancellationToken);
+
                         if (character == ACK)
                         {
                             return;
@@ -211,7 +226,7 @@ namespace mgsoto.Ports.Serial
                         else if (character == NAK)
                         {
                             errorCount++;
-                            break;
+                            keepGoing = false;
                         }
                         else if (character == CAN)
                         {
@@ -221,10 +236,9 @@ namespace mgsoto.Ports.Serial
                     catch (TimeoutException e)
                     {
                         errorCount++;
-                        break;
+                        keepGoing = false;
                     }
                 }
-
             }
 
             throw new IOException("Too many errors caught, abandoning transfer");
