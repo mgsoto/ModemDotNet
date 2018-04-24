@@ -49,15 +49,12 @@ namespace mgsoto.Ports.Serial
             // Keep trying to read until we have some data or until it times out.
             while (!timer.Expired && !retVal.HasValue)
             {
-                if (channel.Length - channel.Position > 0) // TODO: This should be checked for validity.
-                {
-                    byte[] buffer = new byte[1];
-                    int numRead = await channel.ReadAsync(buffer, 0, 1, cancellationToken);
+                byte[] buffer = new byte[1];
+                int numRead = await channel.ReadAsync(buffer, 0, 1, cancellationToken);
 
-                    if (numRead > 0)
-                    {
-                        retVal = buffer[0];
-                    }
+                if (numRead > 0)
+                {
+                    retVal = buffer[0];
                 }
 
                 Thread.Sleep(10);
