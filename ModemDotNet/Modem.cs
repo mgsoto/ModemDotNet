@@ -72,14 +72,23 @@ namespace mgsoto.Ports.Serial
             return retVal.Value;
         }
 
-        protected async Task SendDataBlocks(Stream channel, Stream dataStream, int blockNumber, ICrc crc, CancellationToken cancellationToken)
+        /// <summary>
+        /// Sends a block of data.
+        /// </summary>
+        /// <param name="channel">The channel to send on.</param>
+        /// <param name="dataStream">The stream of data to send.</param>
+        /// <param name="blockNumber">The block number</param>
+        /// <param name="crc">CRC calculation to use.</param>
+        /// <param name="cancellationToken">The cancellation token to use.</param>
+        protected async Task SendBlocks(Stream channel, Stream dataStream, int blockNumber, ICrc crc, CancellationToken cancellationToken)
         {
-            int dataLength;
             byte[] block = new byte[1024];
+            int dataLength = await dataStream.ReadAsync(block, 0, 1024, cancellationToken);
 
-            while ((dataLength = dataStream.Read(block, 0, 1024)) > 0)
+            while (dataLength > 0)
             {
                 await SendBlock(channel, blockNumber++, block, dataLength, crc, cancellationToken);
+                dataLength = await dataStream.ReadAsync(block, 0, 1024, cancellationToken);
             }
         }
 

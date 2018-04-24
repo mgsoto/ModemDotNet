@@ -42,7 +42,7 @@ namespace mgsoto.Ports.Serial
             await WaitReceiverRequest(channel, timer, cancellationToken);
 
             // Send the file contents.
-            await SendDataBlocks(channel, dataStream, 1, crc, cancellationToken);
+            await SendBlocks(channel, dataStream, 1, crc, cancellationToken);
 
             // Send the EOT (we're done sending data) character.
             await SendEot(channel, cancellationToken);
