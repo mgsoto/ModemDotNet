@@ -13,40 +13,38 @@ namespace mgsoto.Ports.Serial
     /// </summary>
     public sealed class YModem : Modem
     {
-        public override void Send(Stream channel, Stream dataStream, string fileName)
+        public override async Task Send(Stream channel, Stream dataStream, string fileName, CancellationToken cancellationToken)
         {
             ModemTimer timer = new ModemTimer(WAIT_FOR_RECEIVER_TIMEOUT);
             timer.Start();
-            bool useCrc16 = WaitReceiverRequest(channel, timer);
-            ICrc crc = WaitReceiverRequest(channel, timer) ? Crc.Crc16 : Crc.Crc8;
+            bool useCrc16 = await WaitReceiverRequest(channel, timer, cancellationToken);
+            ICrc crc = await WaitReceiverRequest(channel, timer, cancellationToken) ? Crc.Crc16 : Crc.Crc8;
 
             string fileNameString = $"{fileName.ToLower()}";
             byte[] fileNameBytes = new byte[128];
             Encoding.UTF8.GetBytes(fileNameString, 0, fileNameString.Length, fileNameBytes, 0);
 
-            SendBlock(channel, 0, fileNameBytes, 128, crc);
+            await SendBlock(channel, 0, fileNameBytes, 128, crc, cancellationToken);
 
-             WaitReceiverRequest(channel, timer);
+            await WaitReceiverRequest(channel, timer, cancellationToken);
             //send data
-            SendDataBlocks(channel, dataStream, 1, crc);
+            await SendDataBlocks(channel, dataStream, 1, crc, cancellationToken);
 
-
-            SendEot(channel);
+            await SendEot(channel, cancellationToken);
         }
 
-        protected static void SendDataBlocks(Stream channel, Stream dataStream, int blockNumber, ICrc crc)
+        private async Task SendDataBlocks(Stream channel, Stream dataStream, int blockNumber, ICrc crc, CancellationToken cancellationToken)
         {
             int dataLength;
             byte[] block = new byte[1024];
 
             while ((dataLength = dataStream.Read(block, 0, 1024)) > 0)
             {
-
-                SendBlock(channel, blockNumber++, block, dataLength, crc);
+                await SendBlock(channel, blockNumber++, block, dataLength, crc, cancellationToken);
             }
         }
 
-        protected static void SendEot(Stream channel)
+        private async Task SendEot(Stream channel, CancellationToken cancellationToken)
         {
             int errorCount = 0;
             ModemTimer timer = new ModemTimer(BLOCK_TIMEOUT);
@@ -56,7 +54,7 @@ namespace mgsoto.Ports.Serial
                 SendByte(channel, EOT);
                 try
                 {
-                    character = ReadByte(channel, timer);
+                    character = await ReadByte(channel, timer, cancellationToken);
 
                     if (character == ACK)
                     {
@@ -74,12 +72,12 @@ namespace mgsoto.Ports.Serial
             }
         }
 
-        private static bool WaitReceiverRequest(Stream channel, ModemTimer timer)
+        private async Task<bool> WaitReceiverRequest(Stream channel, ModemTimer timer, CancellationToken cancellationToken)
         {
         int character;
             while (true) {
             try {
-                character = ReadByte(channel, timer);
+                character = await ReadByte(channel, timer, cancellationToken);
                 if (character == NAK)
                     return false;
                 if (character == ST_C) {
@@ -91,13 +89,13 @@ namespace mgsoto.Ports.Serial
         }
     }
 
-        protected static void SendByte(Stream channel, byte b)
+        protected void SendByte(Stream channel, byte b)
         {
             channel.WriteByte(b);
             channel.Flush();
         }
 
-        private static void SendBlock(Stream channel, int blockNumber, byte[] block, int dataLength, ICrc crc)
+        private async Task SendBlock(Stream channel, int blockNumber, byte[] block, int dataLength, ICrc crc, CancellationToken cancellationToken)
         {
             int errorCount;
             int character;
@@ -131,7 +129,7 @@ namespace mgsoto.Ports.Serial
                 {
                     try
                     {
-                        character = ReadByte(channel, timer);
+                        character = await ReadByte(channel, timer, cancellationToken);
                         if (character == ACK)
                         {
                             return;
@@ -158,7 +156,7 @@ namespace mgsoto.Ports.Serial
             throw new IOException("Too many errors caught, abandoning transfer");
         }
 
-        private static void WriteCrc(Stream channel, byte[] block, ICrc crc)
+        private void WriteCrc(Stream channel, byte[] block, ICrc crc)
         {
             byte[] crcBytes = new byte[crc.Length];
             long crcValue = crc.Compute(block);
@@ -167,25 +165,6 @@ namespace mgsoto.Ports.Serial
                 crcBytes[crc.Length - i - 1] = (byte)((crcValue >> (8 * i)) & 0xFF);
             }
             channel.Write(crcBytes, 0, crcBytes.Length);
-        }
-
-        private static byte ReadByte(Stream channel, ModemTimer timer)
-        {
-            while (true)
-            {
-                if (channel.Length - channel.Position > 0)
-                {
-                    int b = channel.ReadByte();
-                    return (byte)b;
-                }
-                if (timer.Expired) {
-                    throw new TimeoutException();
-                }
-
-                Thread.Sleep(10);
-            }
-        }
-
-        
+        }        
     }
 }

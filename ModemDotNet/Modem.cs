@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace mgsoto.Ports.Serial
 {
@@ -30,6 +32,44 @@ namespace mgsoto.Ports.Serial
         /// <param name="stream">The stream to perform the transfer on.</param>
         /// <param name="dataStream">The datastream to transfer.</param>
         /// <param name="fileName">The name of the file to transfer.</param>
-        public abstract void Send(Stream stream, Stream dataStream, string fileName);
+        /// <param name="cancellationToken">Cancellation token for cancelling the task.</param>
+        public abstract Task Send(Stream stream, Stream dataStream, string fileName, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Reads a byte from the stream.
+        /// </summary>
+        /// <param name="channel">The channel to read from.</param>
+        /// <param name="timer">Max time to wait to read from the buffer.</param>
+        /// <param name="cancellationToken">Cancellation token used to cancel the task.</param>
+        /// <returns>A single byte.</returns>
+        protected async Task<byte> ReadByte(Stream channel, ModemTimer timer, CancellationToken cancellationToken)
+        {
+            byte? retVal = null;
+
+            // Keep trying to read until we have some data or until it times out.
+            while (!timer.Expired && !retVal.HasValue)
+            {
+                if (channel.Length - channel.Position > 0)
+                {
+                    byte[] buffer = new byte[1];
+                    int numRead = await channel.ReadAsync(buffer, 0, 1, cancellationToken);
+
+                    if(numRead > 0)
+                    {
+                        retVal = buffer[0];
+                    }
+                }
+
+                Thread.Sleep(10);
+            }
+
+            // Error out if we didn't read anything.
+            if(!retVal.HasValue)
+            {
+                throw new TimeoutException();
+            }
+
+            return retVal.Value;
+        }
     }
 }
