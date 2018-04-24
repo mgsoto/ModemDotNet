@@ -54,7 +54,7 @@ namespace mgsoto.Ports.Serial
                     byte[] buffer = new byte[1];
                     int numRead = await channel.ReadAsync(buffer, 0, 1, cancellationToken);
 
-                    if(numRead > 0)
+                    if (numRead > 0)
                     {
                         retVal = buffer[0];
                     }
@@ -64,7 +64,7 @@ namespace mgsoto.Ports.Serial
             }
 
             // Error out if we didn't read anything.
-            if(!retVal.HasValue)
+            if (!retVal.HasValue)
             {
                 throw new TimeoutException();
             }
@@ -128,26 +128,32 @@ namespace mgsoto.Ports.Serial
             }
         }
 
+        /// <summary>
+        /// Waits for the receiver request token.
+        /// </summary>
+        /// <param name="channel">Channel to wait upon.</param>
+        /// <param name="timer">Timer to use.</param>
+        /// <param name="cancellationToken">Cancellation token to use.</param>
+        /// <returns>True if we should continue, false if we should resend.</returns>
         protected async Task<bool> WaitReceiverRequest(Stream channel, ModemTimer timer, CancellationToken cancellationToken)
         {
-            int character;
-            while (true)
+            bool? retVal = null;
+
+            while (!retVal.HasValue && !timer.Expired) // TODO: Validate this change.
             {
-                try
+                int character = await ReadByte(channel, timer, cancellationToken);
+
+                if (character == NAK)
                 {
-                    character = await ReadByte(channel, timer, cancellationToken);
-                    if (character == NAK)
-                        return false;
-                    if (character == ST_C)
-                    {
-                        return true;
-                    }
+                    retVal = false;
                 }
-                catch (TimeoutException e)
+                if (character == ST_C)
                 {
-                    throw new IOException("Timeout waiting for receiver");
+                    retVal = true;
                 }
             }
+
+            return retVal.Value;
         }
 
         /// <summary>
