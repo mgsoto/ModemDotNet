@@ -230,7 +230,7 @@ namespace mgsoto.Ports.Serial
                             throw new IOException("Transmission terminated");
                         }
                     }
-                    catch (TimeoutException e)
+                    catch (TimeoutException)
                     {
                         errorCount++;
                         keepGoing = false;
